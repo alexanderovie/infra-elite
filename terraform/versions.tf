@@ -1,0 +1,19 @@
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+    # Opcional: Supabase
+    # supabase = {
+    #   source  = "supabase/supabase"
+    #   version = "~> 1.0"
+    # }
+  }
+}

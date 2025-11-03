@@ -1,0 +1,284 @@
+#!/bin/bash
+
+# CLI Elite - Gestión de Infraestructura con Terraform
+# Script en español para aplicar cambios de infraestructura
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TERRAFORM_DIR="${SCRIPT_DIR}/../terraform"
+
+# Colores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Función de ayuda
+show_help() {
+    echo -e "${BLUE}CLI Elite - Gestión de Infraestructura${NC}"
+    echo ""
+    echo "Uso: ./scripts/elite [comando] [opciones]"
+    echo ""
+    echo "Comandos disponibles:"
+    echo "  init          Inicializa Terraform y descarga providers"
+    echo "  plan          Muestra los cambios planificados"
+    echo "  apply         Aplica los cambios (requiere confirmación)"
+    echo "  destroy       Destruye todos los recursos (peligroso)"
+    echo "  validate      Valida la configuración de Terraform"
+    echo "  fmt           Formatea los archivos .tf"
+    echo "  output        Muestra los outputs del estado"
+    echo "  state         Muestra información del estado"
+    echo ""
+    echo "Opciones:"
+    echo "  -h, --help    Muestra esta ayuda"
+    echo "  -e, --env     Especifica el entorno (dev, stage, prod)"
+    echo "  -y, --yes     Aplica cambios sin confirmación (solo para apply/destroy)"
+    echo ""
+    echo "Ejemplos:"
+    echo "  ./scripts/elite init"
+    echo "  ./scripts/elite plan -e dev"
+    echo "  ./scripts/elite apply -e stage"
+    echo "  ./scripts/elite apply -e prod -y"
+}
+
+# Verificar que Terraform está instalado
+check_terraform() {
+    if ! command -v terraform &> /dev/null; then
+        echo -e "${RED}Error: Terraform no está instalado${NC}"
+        echo "Instala Terraform desde: https://www.terraform.io/downloads"
+        exit 1
+    fi
+}
+
+# Verificar que el directorio de Terraform existe
+check_terraform_dir() {
+    if [ ! -d "$TERRAFORM_DIR" ]; then
+        echo -e "${RED}Error: Directorio terraform/ no encontrado${NC}"
+        exit 1
+    fi
+}
+
+# Cargar variables de entorno
+load_env() {
+    if [ -f "${SCRIPT_DIR}/../.env" ]; then
+        set -a
+        source "${SCRIPT_DIR}/../.env"
+        set +a
+        echo -e "${GREEN}✓ Variables de entorno cargadas${NC}"
+    else
+        echo -e "${YELLOW}⚠ Archivo .env no encontrado${NC}"
+        echo "   Crea .env desde .env.example"
+    fi
+}
+
+# Comando: init
+cmd_init() {
+    echo -e "${BLUE}Inicializando Terraform...${NC}"
+    cd "$TERRAFORM_DIR"
+    terraform init
+    echo -e "${GREEN}✓ Inicialización completada${NC}"
+}
+
+# Obtener archivo de variables según entorno
+get_var_file() {
+    local env=$1
+    if [ -n "$env" ]; then
+        local var_file="${TERRAFORM_DIR}/envs/${env}.tfvars"
+        if [ -f "$var_file" ]; then
+            echo "-var-file=envs/${env}.tfvars"
+        else
+            echo -e "${YELLOW}⚠ Archivo ${var_file} no encontrado${NC}" >&2
+            echo -e "${YELLOW}⚠ Continuando sin archivo de variables${NC}" >&2
+        fi
+    fi
+}
+
+# Comando: plan
+cmd_plan() {
+    local env=$1
+    local var_file_arg=$(get_var_file "$env")
+
+    echo -e "${BLUE}Planificando cambios${env:+" para entorno: $env"}...${NC}"
+    cd "$TERRAFORM_DIR"
+    terraform plan $var_file_arg
+}
+
+# Comando: apply
+cmd_apply() {
+    local env=$1
+    local auto_confirm=$2
+    local var_file_arg=$(get_var_file "$env")
+
+    if [ "$auto_confirm" != "-y" ] && [ "$auto_confirm" != "--yes" ]; then
+        echo -e "${YELLOW}⚠ Esto aplicará cambios en la infraestructura${env:+" para entorno: $env"}${NC}"
+        read -p "¿Continuar? (yes/no): " confirm
+        if [ "$confirm" != "yes" ]; then
+            echo -e "${RED}Operación cancelada${NC}"
+            exit 0
+        fi
+    fi
+
+    echo -e "${BLUE}Aplicando cambios${env:+" para entorno: $env"}...${NC}"
+    cd "$TERRAFORM_DIR"
+    terraform apply $var_file_arg ${auto_confirm:+-auto-approve}
+    echo -e "${GREEN}✓ Cambios aplicados${NC}"
+}
+
+# Comando: destroy
+cmd_destroy() {
+    local env=$1
+    local auto_confirm=$2
+    local var_file_arg=$(get_var_file "$env")
+
+    echo -e "${RED}⚠ ADVERTENCIA: Esto destruirá TODOS los recursos${env:+" del entorno: $env"}${NC}"
+    if [ "$auto_confirm" != "-y" ] && [ "$auto_confirm" != "--yes" ]; then
+        read -p "¿Estás seguro? Escribe 'yes' para confirmar: " confirm
+        if [ "$confirm" != "yes" ]; then
+            echo -e "${YELLOW}Operación cancelada${NC}"
+            exit 0
+        fi
+    fi
+
+    echo -e "${BLUE}Destruyendo recursos${env:+" del entorno: $env"}...${NC}"
+    cd "$TERRAFORM_DIR"
+    terraform destroy $var_file_arg ${auto_confirm:+-auto-approve}
+    echo -e "${GREEN}✓ Recursos destruidos${NC}"
+}
+
+# Comando: validate
+cmd_validate() {
+    echo -e "${BLUE}Validando configuración...${NC}"
+    cd "$TERRAFORM_DIR"
+    if terraform validate; then
+        echo -e "${GREEN}✓ Configuración válida${NC}"
+    else
+        echo -e "${RED}✗ Errores en la configuración${NC}"
+        exit 1
+    fi
+}
+
+# Comando: fmt
+cmd_fmt() {
+    echo -e "${BLUE}Formateando archivos...${NC}"
+    cd "$TERRAFORM_DIR"
+    terraform fmt -recursive
+    echo -e "${GREEN}✓ Formateo completado${NC}"
+}
+
+# Comando: output
+cmd_output() {
+    echo -e "${BLUE}Outputs de Terraform:${NC}"
+    cd "$TERRAFORM_DIR"
+    terraform output
+}
+
+# Comando: state
+cmd_state() {
+    echo -e "${BLUE}Información del estado:${NC}"
+    cd "$TERRAFORM_DIR"
+    terraform state list
+}
+
+# Parsear argumentos
+parse_args() {
+    local cmd=""
+    local env=""
+    local auto_confirm=""
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -e|--env)
+                env="$2"
+                shift 2
+                ;;
+            -y|--yes)
+                auto_confirm="-y"
+                shift
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            init|plan|apply|destroy|validate|fmt|output|state)
+                cmd="$1"
+                shift
+                ;;
+            *)
+                echo -e "${RED}Error: Argumento desconocido '$1'${NC}"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+
+    echo "$cmd|$env|$auto_confirm"
+}
+
+# Main
+main() {
+    check_terraform
+    check_terraform_dir
+    load_env
+
+    # Si no hay argumentos, mostrar ayuda
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    # Parsear argumentos
+    local args=$(parse_args "$@")
+    local cmd=$(echo "$args" | cut -d'|' -f1)
+    local env=$(echo "$args" | cut -d'|' -f2)
+    local auto_confirm=$(echo "$args" | cut -d'|' -f3)
+
+    # Validar entorno si se proporciona
+    if [ -n "$env" ] && [[ ! "$env" =~ ^(dev|stage|prod)$ ]]; then
+        echo -e "${RED}Error: Entorno inválido '$env'${NC}"
+        echo "   Entornos válidos: dev, stage, prod"
+        exit 1
+    fi
+
+    case "$cmd" in
+        init)
+            cmd_init
+            ;;
+        plan)
+            cmd_plan "$env"
+            ;;
+        apply)
+            cmd_apply "$env" "$auto_confirm"
+            ;;
+        destroy)
+            cmd_destroy "$env" "$auto_confirm"
+            ;;
+        validate)
+            cmd_validate
+            ;;
+        fmt)
+            cmd_fmt
+            ;;
+        output)
+            cmd_output
+            ;;
+        state)
+            cmd_state
+            ;;
+        "")
+            echo -e "${RED}Error: Debes especificar un comando${NC}"
+            echo ""
+            show_help
+            exit 1
+            ;;
+        *)
+            echo -e "${RED}Error: Comando desconocido '$cmd'${NC}"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
