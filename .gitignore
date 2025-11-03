@@ -30,3 +30,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# GCP Service Account Keys
+gcp-terraform-key.json
+*-key.json
