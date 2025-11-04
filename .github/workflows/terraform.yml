@@ -51,6 +51,8 @@ jobs:
       - name: Bootstrap tfstate bucket (idempotent)
         run: |
           sudo apt-get update && sudo apt-get install -y google-cloud-cli
+          export GOOGLE_CLOUD_PROJECT="${GOOGLE_PROJECT_ID}"
+          export GCLOUD_PROJECT="${GOOGLE_PROJECT_ID}"
           ./scripts/bootstrap_state.sh
 
       - name: Terraform Init (remote backend)
@@ -164,6 +166,8 @@ jobs:
       - name: Bootstrap tfstate bucket (idempotent)
         run: |
           sudo apt-get update && sudo apt-get install -y google-cloud-cli
+          export GOOGLE_CLOUD_PROJECT="${GOOGLE_PROJECT_ID}"
+          export GCLOUD_PROJECT="${GOOGLE_PROJECT_ID}"
           ./scripts/bootstrap_state.sh
 
       - name: Terraform Init (remote backend)
