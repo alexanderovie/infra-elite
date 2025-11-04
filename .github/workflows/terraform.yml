@@ -69,7 +69,10 @@ jobs:
         id: plan
         run: |
           terraform init
-          terraform plan -no-color -out=tfplan
+          terraform plan -no-color -out=tfplan \
+            -var-file=envs/dev.tfvars \
+            -var="cloudflare_account_id=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" \
+            -var="cloudflare_zone_id=${{ secrets.CLOUDFLARE_ZONE_ID }}"
         continue-on-error: true
 
       - name: Comentario en PR (Plan)
