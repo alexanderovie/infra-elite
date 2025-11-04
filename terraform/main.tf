@@ -29,3 +29,21 @@
 #   project  = var.google_project_id
 # }
 
+# === BEGIN worker_test (managed) ===
+# Worker de prueba para validar el pipeline
+module "worker_test" {
+  source = "./modules/cloudflare_worker"
+
+  account_id = var.cloudflare_account_id
+  name       = "test-worker"
+  script     = file("${path.module}/../workers/test-worker/index.js")
+  
+  # Sin route (worker standalone, se invoca via API o binding)
+  zone_id       = var.cloudflare_zone_id
+  route_pattern = ""
+  
+  plain_text_bindings = []
+  secret_text_bindings = []
+}
+# === END worker_test (managed) ===
+
