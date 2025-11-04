@@ -49,3 +49,17 @@ variable "stripe_secret_key" {
   default     = ""
   sensitive   = true
 }
+
+# Vercel (opcional)
+variable "vercel_api_token" {
+  description = "API Token de Vercel"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vercel_team_id" {
+  description = "Team ID de Vercel (opcional, para teams)"
+  type        = string
+  default     = ""
+}

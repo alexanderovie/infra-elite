@@ -72,3 +72,24 @@ module "worker_test" {
   secret_text_bindings = []
 }
 # === END worker_test (managed) ===
+
+# === BEGIN vercel_test_project (managed) ===
+# Proyecto de prueba de Vercel para validar el módulo
+module "vercel_test_project" {
+  source = "./modules/vercel_project"
+
+  name      = "vercel-test-project"
+  framework = "nextjs"
+
+  # Sin git repository (deploy manual o via CLI)
+  # git_repository = null
+
+  # Configuración básica
+  auto_assign_custom_domains = false
+  preview_deployments_disabled = false
+  public_source = false
+
+  # Variables de entorno de ejemplo (opcional)
+  environment_variables = []
+}
+# === END vercel_test_project (managed) ===

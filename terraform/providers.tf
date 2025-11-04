@@ -11,3 +11,9 @@ provider "google" {
 # provider "supabase" {
 #   access_token = var.supabase_access_token
 # }
+
+# Opcional: Provider para Vercel
+provider "vercel" {
+  api_token = var.vercel_api_token != "" ? var.vercel_api_token : null
+  team      = var.vercel_team_id != "" ? var.vercel_team_id : null
+}
