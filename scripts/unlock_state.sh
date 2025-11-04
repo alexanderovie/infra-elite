@@ -15,18 +15,24 @@ echo "🔓 Verificando si hay locks activos..."
 
 # Estrategia: Intentar terraform plan con -refresh=false para detectar lock rápidamente
 # Si falla, extraemos el Lock ID del error
-PLAN_OUTPUT=$(terraform plan -refresh=false -no-color 2>&1 || true)
+# Usamos -var-file o variables del entorno si están disponibles
+PLAN_OUTPUT=$(terraform plan -refresh=false -no-color \
+  -var="google_project_id=${TF_VAR_google_project_id:-${GOOGLE_PROJECT_ID:-}}" \
+  -var="cloudflare_account_id=${TF_VAR_cloudflare_account_id:-${CLOUDFLARE_ACCOUNT_ID:-}}" \
+  -var="cloudflare_zone_id=${TF_VAR_cloudflare_zone_id:-${CLOUDFLARE_ZONE_ID:-}}" \
+  -var="cloudflare_api_token=${TF_VAR_cloudflare_api_token:-${CLOUDFLARE_API_TOKEN:-}}" \
+  2>&1 || true)
 
 if echo "$PLAN_OUTPUT" | grep -q "Error acquiring the state lock"; then
   echo "⚠️  Lock detectado, extrayendo ID..."
-  
+
   # Extraer Lock ID del error
   LOCK_ID=$(echo "$PLAN_OUTPUT" | grep -A 5 "Lock Info:" | grep "ID:" | awk '{print $2}' || echo "")
-  
+
   if [ -n "$LOCK_ID" ]; then
     echo "🔓 Lock ID encontrado: ${LOCK_ID}"
     echo "   Intentando liberar lock orphaned (seguro porque concurrency previene runs simultáneos)..."
-    
+
     if terraform force-unlock -force "${LOCK_ID}" 2>&1; then
       echo "✅ Lock liberado exitosamente"
     else
