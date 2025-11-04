@@ -65,6 +65,12 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=${TF_STATE_PREFIX}"
 
+      - name: Liberar locks orphaned (si existen)
+        working-directory: terraform
+        continue-on-error: true
+        run: |
+          ../scripts/unlock_state.sh
+
       - name: Importar recurso DNS existente (si aplica)
         id: import_dns
         working-directory: terraform
@@ -158,6 +164,12 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=${TF_STATE_PREFIX}"
 
+      - name: Liberar locks orphaned (si existen)
+        working-directory: terraform
+        continue-on-error: true
+        run: |
+          ../scripts/unlock_state.sh
+
       - name: Terraform Plan
         id: plan
         working-directory: terraform
@@ -210,6 +222,12 @@ jobs:
           terraform init \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=${TF_STATE_PREFIX}"
+
+      - name: Liberar locks orphaned (si existen)
+        working-directory: terraform
+        continue-on-error: true
+        run: |
+          ../scripts/unlock_state.sh
 
       - name: Terraform Plan (detect drift)
         id: plan

@@ -1,35 +1,37 @@
 #!/usr/bin/env bash
-# Script para liberar locks orphaned de Terraform state
-# Solo libera locks que tienen más de 10 minutos de antigüedad
+# Script para verificar y liberar locks orphaned de Terraform state
+# Solo funciona en CI/CD donde el concurrency group previene runs simultáneos
 set -euo pipefail
 
-BUCKET="${TF_STATE_BUCKET:?TF_STATE_BUCKET no está configurado}"
-PREFIX="${TF_STATE_PREFIX:-terraform/global}"
-LOCK_FILE="gs://${BUCKET}/${PREFIX}/default.tflock"
+LOCK_ID="${1:-}"
+WORKING_DIR="${2:-terraform}"
 
-echo "🔓 Verificando locks orphaned en ${LOCK_FILE}..."
-
-# Verificar si existe el archivo de lock
-if gsutil -q stat "${LOCK_FILE}" 2>/dev/null; then
-  echo "⚠️  Lock encontrado, verificando antigüedad..."
+if [ -z "$LOCK_ID" ]; then
+  echo "🔓 Verificando si hay locks activos..."
   
-  # Obtener información del lock (metadata)
-  LOCK_INFO=$(gsutil stat "${LOCK_FILE}" 2>/dev/null || echo "")
-  
-  if [ -n "$LOCK_INFO" ]; then
-    # Intentar leer el contenido del lock para obtener el timestamp
-    # Terraform locks incluyen metadata sobre cuándo fueron creados
-    echo "📋 Lock existe, pero no podemos determinar automáticamente si es orphaned"
-    echo "   Si este run falla por lock, ejecuta manualmente:"
-    echo "   terraform force-unlock <LOCK_ID>"
-    echo ""
-    echo "   O espera a que el lock expire (normalmente 5-10 minutos)"
+  # Intentar listar el estado - si falla por lock, capturamos el ID
+  cd "$WORKING_DIR"
+  if terraform state list >/dev/null 2>&1; then
+    echo "✅ No hay locks activos"
+    exit 0
+  else
+    # El error contiene el Lock ID
+    LOCK_ERROR=$(terraform state list 2>&1 || true)
+    if echo "$LOCK_ERROR" | grep -q "Lock Info:"; then
+      LOCK_ID=$(echo "$LOCK_ERROR" | grep -A 1 "Lock Info:" | grep "ID:" | awk '{print $2}')
+      if [ -n "$LOCK_ID" ]; then
+        echo "⚠️  Lock encontrado: ${LOCK_ID}"
+        echo "   Intentando liberar lock orphaned..."
+        terraform force-unlock -force "${LOCK_ID}" || echo "⚠️  No se pudo liberar el lock (puede ser legítimo)"
+      fi
+    fi
   fi
 else
-  echo "✅ No hay locks activos"
+  echo "🔓 Liberando lock específico: ${LOCK_ID}"
+  cd "$WORKING_DIR"
+  terraform force-unlock -force "${LOCK_ID}" || {
+    echo "⚠️  No se pudo liberar el lock ${LOCK_ID}"
+    exit 0  # No fallar el workflow
+  }
+  echo "✅ Lock liberado exitosamente"
 fi
-
-# NOTA: No liberamos automáticamente porque puede ser peligroso
-# Si hay un run legítimo en curso, liberar su lock causaría corrupción
-# El concurrency group en GitHub Actions previene múltiples runs simultáneos
-

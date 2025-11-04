@@ -36,16 +36,16 @@ RESPONSE=$(curl -s -X GET \
 # Verificar si la respuesta es exitosa
 if echo "$RESPONSE" | grep -q '"success":true'; then
   RECORD_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
-  
+
   if [ -z "$RECORD_ID" ]; then
     echo "⚠️  No se encontró el registro ${RECORD_NAME} en Cloudflare"
     echo "   Esto es normal si el registro no existe aún"
     exit 0
   fi
-  
+
   echo "✅ Record ID encontrado: ${RECORD_ID}"
   echo "   Importando a Terraform..."
-  
+
   # Intentar import con manejo de errores
   if terraform import "module.${MODULE_NAME}.cloudflare_record.this" "${ZONE_ID}/${RECORD_ID}" 2>&1; then
     echo "✅ Import exitoso"
@@ -69,4 +69,3 @@ else
   echo "   Respuesta: ${RESPONSE}"
   exit 0  # No fallar el workflow
 fi
-
