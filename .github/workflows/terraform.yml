@@ -60,8 +60,7 @@ jobs:
         run: |
           terraform init \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
-            -backend-config="prefix=${TF_STATE_PREFIX}" \
-            -backend-config="project=${GOOGLE_PROJECT_ID}"
+            -backend-config="prefix=${TF_STATE_PREFIX}"
 
       - name: Importar recurso DNS existente (si aplica)
         id: import_dns
@@ -175,8 +174,7 @@ jobs:
         run: |
           terraform init \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
-            -backend-config="prefix=${TF_STATE_PREFIX}" \
-            -backend-config="project=${GOOGLE_PROJECT_ID}"
+            -backend-config="prefix=${TF_STATE_PREFIX}"
 
       - name: Importar recurso DNS existente (si aplica)
         id: import_dns
@@ -260,8 +258,7 @@ jobs:
         run: |
           terraform init \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
-            -backend-config="prefix=${TF_STATE_PREFIX}" \
-            -backend-config="project=${GOOGLE_PROJECT_ID}"
+            -backend-config="prefix=${TF_STATE_PREFIX}"
 
       - name: Terraform Plan (detect drift)
         id: plan

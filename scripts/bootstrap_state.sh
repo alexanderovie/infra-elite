@@ -28,25 +28,35 @@ else
     echo "✅ Bucket creado exitosamente"
   else
     EXIT_CODE=$?
-    if [ $EXIT_CODE -eq 1 ]; then
-      # Verificar si el error es porque el nombre ya está ocupado
-      ERROR_OUTPUT=$(gcloud storage buckets create "gs://$BUCKET" \
-        --project="$PROJECT_ID" \
-        --location="$REGION" 2>&1 || true)
-      if echo "$ERROR_OUTPUT" | grep -q "409\|not available"; then
-        echo "⚠️  El nombre del bucket ya está ocupado globalmente"
-        echo "   Intentando usar el bucket existente (puede fallar si no tienes acceso)..."
-        # Intentar verificar acceso
-        if gsutil ls "gs://$BUCKET" >/dev/null 2>&1; then
-          echo "✅ Tienes acceso al bucket existente"
+      if [ $EXIT_CODE -eq 1 ]; then
+        # Capturar el mensaje de error completo
+        ERROR_OUTPUT=$(gcloud storage buckets create "gs://$BUCKET" \
+          --project="$PROJECT_ID" \
+          --location="$REGION" 2>&1 || true)
+        
+        # Verificar si el error es porque el bucket ya existe (y lo creamos nosotros)
+        if echo "$ERROR_OUTPUT" | grep -q "409.*you already own it\|already exists"; then
+          echo "✅ El bucket ya existe y tú lo creaste"
+          echo "   Verificando acceso..."
+          # Intentar verificar acceso (sin el flag -p para usar credenciales actuales)
+          if gsutil ls "gs://$BUCKET" >/dev/null 2>&1; then
+            echo "✅ Tienes acceso al bucket"
+          else
+            echo "⚠️  No se pudo verificar acceso, pero el bucket existe (continuando...)"
+          fi
+        elif echo "$ERROR_OUTPUT" | grep -q "409.*not available"; then
+          echo "⚠️  El nombre del bucket ya está ocupado por otro usuario"
+          echo "   Intentando usar el bucket existente..."
+          if gsutil ls "gs://$BUCKET" >/dev/null 2>&1; then
+            echo "✅ Tienes acceso al bucket existente"
+          else
+            echo "❌ No tienes acceso al bucket. Por favor, cambia TF_STATE_BUCKET a un nombre único"
+            exit 1
+          fi
         else
-          echo "❌ No tienes acceso al bucket. Por favor, cambia TF_STATE_BUCKET a un nombre único"
+          echo "❌ Error creando bucket: $ERROR_OUTPUT"
           exit 1
         fi
-      else
-        echo "❌ Error creando bucket: $ERROR_OUTPUT"
-        exit 1
-      fi
     else
       echo "❌ Error inesperado creando bucket"
       exit 1
