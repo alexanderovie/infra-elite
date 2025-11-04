@@ -67,15 +67,8 @@ variable "ignore_command" {
   default     = ""
 }
 
-variable "build_machine_type" {
-  description = "Tipo de máquina de build: 'enhanced' o 'turbo'"
-  type        = string
-  default     = ""
-  validation {
-    condition     = var.build_machine_type == "" || contains(["enhanced", "turbo"], var.build_machine_type)
-    error_message = "build_machine_type debe ser 'enhanced' o 'turbo'"
-  }
-}
+# Nota: build_machine_type no está disponible en el recurso vercel_project
+# Se configura en vercel.json o en el dashboard de Vercel
 
 variable "node_version" {
   description = "Versión de Node.js para builds y serverless functions"
@@ -90,19 +83,10 @@ variable "team_id" {
   default     = ""
 }
 
-# Environment variables (opcional)
-variable "environment_variables" {
-  description = "Variables de entorno del proyecto (mejor usar vercel_project_environment_variable para gestión avanzada)"
-  type = list(object({
-    key        = string
-    value      = string
-    target     = optional(list(string), ["production", "preview"])
-    sensitive  = optional(bool, false)
-    git_branch = optional(string)
-    comment    = optional(string)
-  }))
-  default = []
-}
+# Nota: environment_variables NO se pueden definir directamente en vercel_project
+# Usar recursos separados:
+# - vercel_project_environment_variable (una variable)
+# - vercel_project_environment_variables (múltiples variables)
 
 # Auto-assign custom domains
 variable "auto_assign_custom_domains" {
@@ -111,12 +95,8 @@ variable "auto_assign_custom_domains" {
   default     = true
 }
 
-# Preview deployments
-variable "preview_deployments_disabled" {
-  description = "Deshabilitar creación de preview deployments"
-  type        = bool
-  default     = false
-}
+# Nota: preview_deployments_disabled no está disponible en el recurso vercel_project
+# Se configura en vercel.json o en el dashboard de Vercel
 
 # Git settings
 variable "git_fork_protection" {
@@ -154,4 +134,3 @@ variable "customer_success_code_visibility" {
   type        = bool
   default     = false
 }
-

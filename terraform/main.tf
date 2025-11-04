@@ -86,10 +86,9 @@ module "vercel_test_project" {
 
   # Configuración básica
   auto_assign_custom_domains = false
-  preview_deployments_disabled = false
   public_source = false
 
-  # Variables de entorno de ejemplo (opcional)
-  environment_variables = []
+  # Nota: Variables de entorno se gestionan con recursos separados
+  # vercel_project_environment_variable o vercel_project_environment_variables
 }
 # === END vercel_test_project (managed) ===
