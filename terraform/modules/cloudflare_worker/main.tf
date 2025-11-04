@@ -14,9 +14,10 @@ resource "cloudflare_worker_script" "this" {
   dynamic "secret_text_binding" {
     for_each = var.secret_text_bindings
     content {
-      name = secret_text_binding.value.name
+      name = secret_text_binding.value
       # El valor del secreto se configura manualmente en Cloudflare Dashboard
       # o usando cloudflare_worker_secret
+      # Nota: var.secret_text_bindings es list(string), no list(object)
     }
   }
 
