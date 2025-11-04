@@ -31,28 +31,29 @@
 
 # === BEGIN storage_bucket_test (managed) ===
 # Bucket de prueba para validar el módulo GCP Storage
-module "storage_bucket_test" {
-  source = "./modules/gcp_storage_bucket"
-
-  project_id  = var.google_project_id
-  bucket_name = "test-bucket-${random_id.bucket_suffix.hex}"
-  location    = "US"
-
-  enable_versioning              = true
-  uniform_bucket_level_access    = true
-  public_access_prevention       = "enforced"
-
-  labels = {
-    environment = "test"
-    purpose     = "validation"
-    managed_by  = "terraform"
-  }
-}
-
-# Random ID para asegurar nombre único del bucket
-resource "random_id" "bucket_suffix" {
-  byte_length = 4
-}
+# COMENTADO: Para destruir el bucket, descomenta este módulo y haz merge
+# module "storage_bucket_test" {
+#   source = "./modules/gcp_storage_bucket"
+#
+#   project_id  = var.google_project_id
+#   bucket_name = "test-bucket-${random_id.bucket_suffix.hex}"
+#   location    = "US"
+#
+#   enable_versioning              = true
+#   uniform_bucket_level_access    = true
+#   public_access_prevention       = "enforced"
+#
+#   labels = {
+#     environment = "test"
+#     purpose     = "validation"
+#     managed_by  = "terraform"
+#   }
+# }
+#
+# # Random ID para asegurar nombre único del bucket
+# resource "random_id" "bucket_suffix" {
+#   byte_length = 4
+# }
 # === END storage_bucket_test (managed) ===
 
 # === BEGIN worker_test (managed) ===
