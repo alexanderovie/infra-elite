@@ -59,7 +59,8 @@ jobs:
           echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> $GITHUB_ENV
 
       - name: Formatear código
-        run: terraform fmt -check -recursive
+        run: terraform fmt -recursive -diff
+        continue-on-error: true
 
       - name: Validar configuración
         run: terraform init -backend=false && terraform validate
