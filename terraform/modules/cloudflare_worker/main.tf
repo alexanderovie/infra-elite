@@ -2,34 +2,10 @@ resource "cloudflare_worker_script" "this" {
   account_id = var.account_id
   name       = var.name
   content    = var.script
-  # NOTA: cloudflare_worker_script (sin 's') NO soporta bindings
-  # Para bindings, usar recursos separados:
-  # - cloudflare_worker_secret (para secret_text)
-  # - cloudflare_worker_kv_namespace_binding (para KV)
-  # O usar cloudflare_workers_script (con 's') que está DEPRECATED pero sí tiene bindings
-}
-
-# Secret text bindings (si se proporcionan)
-resource "cloudflare_worker_secret" "this" {
-  for_each = toset(var.secret_text_bindings)
-
-  account_id = var.account_id
-  script_name = cloudflare_worker_script.this.name
-  name = each.value
-  # El valor del secreto se configura manualmente en Cloudflare Dashboard
-  # o usando el argumento 'secret_text' en este recurso
-}
-
-# KV namespace bindings (si se proporcionan)
-resource "cloudflare_worker_kv_namespace_binding" "this" {
-  for_each = {
-    for idx, binding in var.kv_namespace_bindings : binding.name => binding
-  }
-
-  account_id = var.account_id
-  script_name = cloudflare_worker_script.this.name
-  name = each.value.name
-  namespace_id = each.value.namespace_id
+  # NOTA: cloudflare_worker_script (sin 's') NO soporta bindings directamente
+  # Los bindings se deben configurar manualmente en Cloudflare Dashboard
+  # o usar cloudflare_workers_script (con 's') que está DEPRECATED pero sí tiene bindings
+  # Para producción, considerar usar cloudflare_worker_version con bindings
 }
 
 resource "cloudflare_worker_route" "this" {
