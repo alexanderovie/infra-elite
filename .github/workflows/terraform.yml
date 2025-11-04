@@ -1,81 +1,74 @@
-name: Terraform CI/CD
+name: Terraform Plan/Apply
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-    paths:
-      - 'terraform/**'
-      - '.github/workflows/terraform.yml'
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'terraform/**'
       - '.github/workflows/terraform.yml'
-  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+  schedule:
+    - cron: '23 3 * * *'  # Drift check diario 03:23 UTC
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
 
 env:
   TF_VERSION: '1.5.0'
-  PROJECT_NUMBER: '304053580743'
-  PROJECT_ID: 'fascinante-digit-1698295291643'
+  GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_STATE_PREFIX: ${{ vars.TF_STATE_PREFIX }}
+  TF_STATE_REGION: 'us'
 
 jobs:
-  terraform:
-    name: Terraform Plan/Apply
-    runs-on: ubuntu-latest
-
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write
-      issues: write
-
-    defaults:
-      run:
-        working-directory: ./terraform
-
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configurar Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Autenticar con Google Cloud (OIDC)
-        uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: 'projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
-          service_account: 'terraform@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+          workload_identity_provider: projects/304053580743/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: terraform@${{ env.GOOGLE_PROJECT_ID }}.iam.gserviceaccount.com
+          create_credentials_file: true
+          export_environment_variables: true
 
-      - name: Configurar gcloud
-        run: gcloud config set project ${{ env.PROJECT_ID }}
-
-      - name: Configurar credenciales de Cloudflare
+      - name: Bootstrap tfstate bucket (idempotent)
         run: |
-          echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" >> $GITHUB_ENV
-          echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> $GITHUB_ENV
+          sudo apt-get update && sudo apt-get install -y google-cloud-cli
+          ./scripts/bootstrap_state.sh
 
-      - name: Formatear código
-        run: terraform fmt -recursive -diff
-        continue-on-error: true
-
-      - name: Validar configuración
-        run: terraform init -backend=false && terraform validate
-
-      - name: Inicializar Terraform con backend
-        run: terraform init
+      - name: Terraform Init (remote backend)
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="prefix=${TF_STATE_PREFIX}" \
+            -backend-config="project=${GOOGLE_PROJECT_ID}"
 
       - name: Importar recurso DNS existente (si aplica)
         id: import_dns
+        working-directory: terraform
+        continue-on-error: true
         run: |
           # Verificar si el módulo dns_mensajeria está en el código
-          if grep -q "module \"dns_mensajeria\"" terraform/main.tf; then
-            echo "Módulo dns_mensajeria encontrado en código"
+          if grep -q 'module "dns_mensajeria"' main.tf; then
+            echo "🔍 Módulo dns_mensajeria encontrado en código"
             # Verificar si ya está en el estado
             if terraform state list 2>/dev/null | grep -q "module.dns_mensajeria"; then
               echo "✅ Recurso ya está en el estado"
@@ -94,55 +87,212 @@ jobs:
               RECORD_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
               
               if [ -n "$RECORD_ID" ]; then
-                echo "Record ID: ${RECORD_ID}"
+                echo "✅ Record ID encontrado: ${RECORD_ID}"
                 terraform import module.dns_mensajeria.cloudflare_record.this "${ZONE_ID}/${RECORD_ID}" || echo "⚠️ Import falló (puede que ya esté en el estado o no exista)"
               else
                 echo "⚠️ No se encontró el registro en Cloudflare"
               fi
             fi
           else
-            echo "Módulo dns_mensajeria no está en el código, saltando import"
+            echo "ℹ️ Módulo dns_mensajeria no está en el código, saltando import"
           fi
-        continue-on-error: true
+
+      - name: Terraform Fmt & Validate
+        working-directory: terraform
+        run: |
+          terraform fmt -recursive -diff || true
+          terraform validate
 
       - name: Terraform Plan
         id: plan
+        working-directory: terraform
+        env:
+          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
         run: |
           terraform plan -no-color -out=tfplan \
-            -var="cloudflare_api_token=${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -var="cloudflare_account_id=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" \
-            -var="cloudflare_zone_id=${{ secrets.CLOUDFLARE_ZONE_ID }}" \
-            -var="google_project_id=${{ env.PROJECT_ID }}" \
-            -var="google_region=us-central1"
-        continue-on-error: true
+            -var="google_project_id=${GOOGLE_PROJECT_ID}" \
+            -var="cloudflare_account_id=${CLOUDFLARE_ACCOUNT_ID}" \
+            -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+            -var="cloudflare_api_token=${CLOUDFLARE_API_TOKEN}" \
+            | tee plan.txt
+          echo "PLAN<<EOF" >> $GITHUB_ENV
+          cat plan.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
-      - name: Comentario en PR (Plan)
-        if: github.event_name == 'pull_request'
+      - name: Comment plan on PR
         uses: actions/github-script@v7
+        env:
+          PLAN: ${{ env.PLAN }}
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `#### Terraform Plan 📖
+            const body = `#### Terraform Plan 📖
             \`\`\`
             ${process.env.PLAN || 'No hay cambios'}
             \`\`\`
-            *Pusheado por: @${{ github.actor }}*`;
+            _Pusheado por: @${context.actor}_`;
             github.rest.issues.createComment({
-              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: output
+              issue_number: context.issue.number,
+              body
             });
 
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          terraform apply -auto-approve tfplan
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: []
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: tf-apply-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Upload plan artifact
-        if: always()
-        uses: actions/upload-artifact@v4
+      - uses: hashicorp/setup-terraform@v3
         with:
-          name: terraform-plan
-          path: terraform/tfplan
-          retention-days: 5
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/304053580743/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: terraform@${{ env.GOOGLE_PROJECT_ID }}.iam.gserviceaccount.com
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Bootstrap tfstate bucket (idempotent)
+        run: |
+          sudo apt-get update && sudo apt-get install -y google-cloud-cli
+          ./scripts/bootstrap_state.sh
+
+      - name: Terraform Init (remote backend)
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="prefix=${TF_STATE_PREFIX}" \
+            -backend-config="project=${GOOGLE_PROJECT_ID}"
+
+      - name: Importar recurso DNS existente (si aplica)
+        id: import_dns
+        working-directory: terraform
+        continue-on-error: true
+        run: |
+          # Verificar si el módulo dns_mensajeria está en el código
+          if grep -q 'module "dns_mensajeria"' main.tf; then
+            echo "🔍 Módulo dns_mensajeria encontrado en código"
+            # Verificar si ya está en el estado
+            if terraform state list 2>/dev/null | grep -q "module.dns_mensajeria"; then
+              echo "✅ Recurso ya está en el estado"
+            else
+              echo "📥 Importando recurso DNS desde Cloudflare..."
+              # Obtener Record ID desde Cloudflare API
+              ZONE_ID="${{ secrets.CLOUDFLARE_ZONE_ID }}"
+              CF_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
+              RECORD_NAME="mensajeria.fascinantedigital.com"
+              
+              RESPONSE=$(curl -s -X GET \
+                "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD_NAME}&type=CNAME" \
+                -H "Authorization: Bearer ${CF_TOKEN}" \
+                -H "Content-Type: application/json")
+              
+              RECORD_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+              
+              if [ -n "$RECORD_ID" ]; then
+                echo "✅ Record ID encontrado: ${RECORD_ID}"
+                terraform import module.dns_mensajeria.cloudflare_record.this "${ZONE_ID}/${RECORD_ID}" || echo "⚠️ Import falló (puede que ya esté en el estado o no exista)"
+              else
+                echo "⚠️ No se encontró el registro en Cloudflare"
+              fi
+            fi
+          else
+            echo "ℹ️ Módulo dns_mensajeria no está en el código, saltando import"
+          fi
+
+      - name: Terraform Plan (for artifact)
+        id: plan
+        working-directory: terraform
+        env:
+          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          terraform plan -no-color -out=tfplan \
+            -var="google_project_id=${GOOGLE_PROJECT_ID}" \
+            -var="cloudflare_account_id=${CLOUDFLARE_ACCOUNT_ID}" \
+            -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+            -var="cloudflare_api_token=${CLOUDFLARE_API_TOKEN}"
+
+      - name: Terraform Apply (non-interactive)
+        working-directory: terraform
+        run: terraform apply -auto-approve tfplan
+
+  drift:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/304053580743/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: terraform@${{ env.GOOGLE_PROJECT_ID }}.iam.gserviceaccount.com
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Bootstrap tfstate bucket (idempotent)
+        run: |
+          sudo apt-get update && sudo apt-get install -y google-cloud-cli
+          ./scripts/bootstrap_state.sh
+
+      - name: Terraform Init (backend)
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="prefix=${TF_STATE_PREFIX}" \
+            -backend-config="project=${GOOGLE_PROJECT_ID}"
+
+      - name: Terraform Plan (detect drift)
+        id: plan
+        working-directory: terraform
+        continue-on-error: true
+        env:
+          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set +e
+          terraform plan -no-color -detailed-exitcode \
+            -var="google_project_id=${GOOGLE_PROJECT_ID}" \
+            -var="cloudflare_account_id=${CLOUDFLARE_ACCOUNT_ID}" \
+            -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+            -var="cloudflare_api_token=${CLOUDFLARE_API_TOKEN}" \
+            | tee plan.txt
+          echo "EXIT_CODE=${PIPESTATUS[0]}" >> $GITHUB_ENV
+          echo "PLAN<<EOF" >> $GITHUB_ENV
+          cat plan.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Open issue if drift
+        if: env.EXIT_CODE == '2'
+        uses: actions/github-script@v7
+        env:
+          PLAN: ${{ env.PLAN }}
+        with:
+          script: |
+            const title = "🚨 Terraform drift detectado";
+            const body = `Se detectaron cambios pendientes en la infraestructura:\n\n\`\`\`\n${process.env.PLAN || ""}\n\`\`\`\n\nRevisa el estado y aplica los cambios necesarios.`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body
+            });

@@ -1,7 +1,18 @@
 # Backend remoto en Google Cloud Storage
+# La configuración se inyecta dinámicamente via -backend-config en CI
 terraform {
-  backend "gcs" {
-    bucket = "terraform-state-fascinante-digit-1698295291643"
-    prefix = "infra-elite/terraform.tfstate"
+  backend "gcs" {}
+
+  required_version = "~> 1.5.0"
+
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
   }
 }
