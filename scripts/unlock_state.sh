@@ -3,8 +3,17 @@
 # Solo funciona en CI/CD donde el concurrency group previene runs simultáneos
 set -euo pipefail
 
-WORKING_DIR="${1:-terraform}"
-cd "$WORKING_DIR"
+# El script se ejecuta desde el directorio terraform (working-directory)
+# No necesitamos cambiar de directorio
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKING_DIR="${1:-.}"
+
+# Si se pasa un directorio, ir a él (solo si no es el actual)
+if [ -n "$1" ] && [ "$1" != "." ] && [ -d "$1" ]; then
+  cd "$1"
+elif [ "$WORKING_DIR" != "." ] && [ -d "$WORKING_DIR" ]; then
+  cd "$WORKING_DIR"
+fi
 
 echo "🔓 Verificando si hay locks activos..."
 
