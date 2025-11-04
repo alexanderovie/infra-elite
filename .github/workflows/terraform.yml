@@ -68,6 +68,11 @@ jobs:
       - name: Liberar locks orphaned (si existen)
         working-directory: terraform
         continue-on-error: true
+        env:
+          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
         run: |
           ../scripts/unlock_state.sh
 
@@ -167,6 +172,11 @@ jobs:
       - name: Liberar locks orphaned (si existen)
         working-directory: terraform
         continue-on-error: true
+        env:
+          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
         run: |
           ../scripts/unlock_state.sh
 
@@ -226,6 +236,11 @@ jobs:
       - name: Liberar locks orphaned (si existen)
         working-directory: terraform
         continue-on-error: true
+        env:
+          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
         run: |
           ../scripts/unlock_state.sh
 
