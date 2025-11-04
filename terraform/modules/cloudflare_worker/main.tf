@@ -2,31 +2,10 @@ resource "cloudflare_worker_script" "this" {
   account_id = var.account_id
   name       = var.name
   content    = var.script
-
-  dynamic "plain_text_binding" {
-    for_each = var.plain_text_bindings
-    content {
-      name  = plain_text_binding.value.name
-      text  = plain_text_binding.value.text
-    }
-  }
-
-  dynamic "secret_text_binding" {
-    for_each = var.secret_text_bindings
-    content {
-      name = secret_text_binding.value.name
-      # El valor del secreto se configura manualmente en Cloudflare Dashboard
-      # o usando cloudflare_worker_secret
-    }
-  }
-
-  dynamic "kv_namespace_binding" {
-    for_each = var.kv_namespace_bindings
-    content {
-      name         = kv_namespace_binding.value.name
-      namespace_id = kv_namespace_binding.value.namespace_id
-    }
-  }
+  # NOTA: cloudflare_worker_script (sin 's') NO soporta bindings directamente
+  # Los bindings se deben configurar manualmente en Cloudflare Dashboard
+  # o usar cloudflare_workers_script (con 's') que está DEPRECATED pero sí tiene bindings
+  # Para producción, considerar usar cloudflare_worker_version con bindings
 }
 
 resource "cloudflare_worker_route" "this" {
