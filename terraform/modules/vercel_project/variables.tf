@@ -31,7 +31,7 @@ variable "git_repository" {
   })
   default = null
   validation {
-    condition     = var.git_repository == null || (var.git_repository != null && contains(["github", "gitlab", "bitbucket"], var.git_repository.type))
+    condition     = var.git_repository == null ? true : contains(["github", "gitlab", "bitbucket"], var.git_repository.type)
     error_message = "git_repository.type debe ser 'github', 'gitlab' o 'bitbucket'"
   }
 }
