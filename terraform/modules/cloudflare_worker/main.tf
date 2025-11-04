@@ -3,31 +3,34 @@ resource "cloudflare_worker_script" "this" {
   name       = var.name
   content    = var.script
 
-  dynamic "plain_text_binding" {
-    for_each = var.plain_text_bindings
-    content {
-      name  = plain_text_binding.value.name
-      text  = plain_text_binding.value.text
-    }
-  }
-
-  dynamic "secret_text_binding" {
-    for_each = var.secret_text_bindings
-    content {
-      name = secret_text_binding.value
-      # El valor del secreto se configura manualmente en Cloudflare Dashboard
-      # o usando cloudflare_worker_secret
-      # Nota: var.secret_text_bindings es list(string), no list(object)
-    }
-  }
-
-  dynamic "kv_namespace_binding" {
-    for_each = var.kv_namespace_bindings
-    content {
-      name         = kv_namespace_binding.value.name
-      namespace_id = kv_namespace_binding.value.namespace_id
-    }
-  }
+  # Bindings usando el campo 'bindings' (lista de objetos)
+  # Según documentación oficial: bindings requiere name, type, y opcionalmente text/namespace_id/etc
+  bindings = concat(
+    # Plain text bindings
+    [
+      for binding in var.plain_text_bindings : {
+        name = binding.name
+        type = "plain_text"
+        text = binding.text
+      }
+    ],
+    # Secret text bindings (solo nombre, el valor se configura en Dashboard o con cloudflare_worker_secret)
+    [
+      for secret_name in var.secret_text_bindings : {
+        name = secret_name
+        type = "secret_text"
+        # No incluir 'text' para secret_text - se configura manualmente
+      }
+    ],
+    # KV namespace bindings
+    [
+      for binding in var.kv_namespace_bindings : {
+        name         = binding.name
+        type         = "kv_namespace"
+        namespace_id = binding.namespace_id
+      }
+    ]
+  )
 }
 
 resource "cloudflare_worker_route" "this" {
