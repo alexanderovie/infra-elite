@@ -8,14 +8,17 @@ RECORD_NAME="mensajeria.fascinantedigital.com"
 
 echo "🔍 Verificando si el módulo ${MODULE_NAME} está en el código..."
 
-if ! grep -q "module \"${MODULE_NAME}\"" terraform/main.tf; then
+# Verificar desde el directorio actual (terraform/) o desde la raíz
+if grep -q "module \"${MODULE_NAME}\"" main.tf 2>/dev/null || grep -q "module \"${MODULE_NAME}\"" terraform/main.tf 2>/dev/null; then
+  echo "✅ Módulo ${MODULE_NAME} encontrado en código"
+else
   echo "ℹ️  Módulo ${MODULE_NAME} no está en el código, saltando import"
   exit 0
 fi
 
 echo "✅ Módulo ${MODULE_NAME} encontrado en código"
 
-# Verificar si ya está en el estado
+# Verificar si ya está en el estado (desde cualquier directorio)
 if terraform state list 2>/dev/null | grep -q "module.${MODULE_NAME}"; then
   echo "✅ Recurso ya está en el estado de Terraform"
   exit 0
