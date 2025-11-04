@@ -29,15 +29,3 @@
 #   project  = var.google_project_id
 # }
 
-# === BEGIN dns_mensajeria (managed) ===
-module "dns_mensajeria" {
-  source = "./modules/cloudflare_dns_record"
-
-  zone_id = var.cloudflare_zone_id   # viene de secrets en CI
-  name    = "mensajeria"             # mensajeria.fascinantedigital.com
-  type    = "CNAME"
-  content = "tu-servicio-xyz-uc.a.run.app"        # destino que indicaste
-  proxied = true                     # proxy naranja (WAF/TLS)
-  ttl     = 1                        # 1 = Auto
-}
-# === END dns_mensajeria (managed) ===
