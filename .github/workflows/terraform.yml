@@ -34,6 +34,9 @@ jobs:
   plan:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    concurrency:
+      group: tf-plan-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
 
@@ -71,37 +74,10 @@ jobs:
           TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ env.CLOUDFLARE_ZONE_ID }}
         run: |
-          # Verificar si el módulo dns_mensajeria está en el código
-          if grep -q 'module "dns_mensajeria"' main.tf; then
-            echo "🔍 Módulo dns_mensajeria encontrado en código"
-            # Verificar si ya está en el estado
-            if terraform state list 2>/dev/null | grep -q "module.dns_mensajeria"; then
-              echo "✅ Recurso ya está en el estado"
-            else
-              echo "📥 Importando recurso DNS desde Cloudflare..."
-              # Obtener Record ID desde Cloudflare API
-              ZONE_ID="${{ secrets.CLOUDFLARE_ZONE_ID }}"
-              CF_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
-              RECORD_NAME="mensajeria.fascinantedigital.com"
-              
-              RESPONSE=$(curl -s -X GET \
-                "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD_NAME}&type=CNAME" \
-                -H "Authorization: Bearer ${CF_TOKEN}" \
-                -H "Content-Type: application/json")
-              
-              RECORD_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
-              
-              if [ -n "$RECORD_ID" ]; then
-                echo "✅ Record ID encontrado: ${RECORD_ID}"
-                terraform import module.dns_mensajeria.cloudflare_record.this "${ZONE_ID}/${RECORD_ID}" || echo "⚠️ Import falló (puede que ya esté en el estado o no exista)"
-              else
-                echo "⚠️ No se encontró el registro en Cloudflare"
-              fi
-            fi
-          else
-            echo "ℹ️ Módulo dns_mensajeria no está en el código, saltando import"
-          fi
+          ../scripts/safe_import_dns.sh || echo "⚠️ Import falló, continuando..."
 
       - name: Terraform Fmt & Validate
         working-directory: terraform
@@ -153,6 +129,7 @@ jobs:
     concurrency:
       group: tf-apply-main
       cancel-in-progress: false
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -181,48 +158,7 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="prefix=${TF_STATE_PREFIX}"
 
-      - name: Importar recurso DNS existente (si aplica)
-        id: import_dns
-        working-directory: terraform
-        continue-on-error: true
-        env:
-          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
-          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
-        run: |
-          # Verificar si el módulo dns_mensajeria está en el código
-          if grep -q 'module "dns_mensajeria"' main.tf; then
-            echo "🔍 Módulo dns_mensajeria encontrado en código"
-            # Verificar si ya está en el estado
-            if terraform state list 2>/dev/null | grep -q "module.dns_mensajeria"; then
-              echo "✅ Recurso ya está en el estado"
-            else
-              echo "📥 Importando recurso DNS desde Cloudflare..."
-              # Obtener Record ID desde Cloudflare API
-              ZONE_ID="${{ secrets.CLOUDFLARE_ZONE_ID }}"
-              CF_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
-              RECORD_NAME="mensajeria.fascinantedigital.com"
-              
-              RESPONSE=$(curl -s -X GET \
-                "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD_NAME}&type=CNAME" \
-                -H "Authorization: Bearer ${CF_TOKEN}" \
-                -H "Content-Type: application/json")
-              
-              RECORD_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
-              
-              if [ -n "$RECORD_ID" ]; then
-                echo "✅ Record ID encontrado: ${RECORD_ID}"
-                terraform import module.dns_mensajeria.cloudflare_record.this "${ZONE_ID}/${RECORD_ID}" || echo "⚠️ Import falló (puede que ya esté en el estado o no exista)"
-              else
-                echo "⚠️ No se encontró el registro en Cloudflare"
-              fi
-            fi
-          else
-            echo "ℹ️ Módulo dns_mensajeria no está en el código, saltando import"
-          fi
-
-      - name: Terraform Plan (for artifact)
+      - name: Terraform Plan
         id: plan
         working-directory: terraform
         env:
@@ -244,6 +180,9 @@ jobs:
   drift:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04
+    concurrency:
+      group: tf-drift
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
@@ -261,6 +200,8 @@ jobs:
       - name: Bootstrap tfstate bucket (idempotent)
         run: |
           sudo apt-get update && sudo apt-get install -y google-cloud-cli
+          export GOOGLE_CLOUD_PROJECT="${GOOGLE_PROJECT_ID}"
+          export GCLOUD_PROJECT="${GOOGLE_PROJECT_ID}"
           ./scripts/bootstrap_state.sh
 
       - name: Terraform Init (backend)

@@ -33,7 +33,7 @@ else
       ERROR_OUTPUT=$(gcloud storage buckets create "gs://$BUCKET" \
         --project="$PROJECT_ID" \
         --location="$REGION" 2>&1 || true)
-      
+
       # Verificar si el error es porque el bucket ya existe (y lo creamos nosotros)
       if echo "$ERROR_OUTPUT" | grep -q "409.*you already own it\|already exists"; then
         echo "✅ El bucket ya existe y tú lo creaste"
