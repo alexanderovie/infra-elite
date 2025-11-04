@@ -67,10 +67,47 @@ jobs:
       - name: Validar configuración
         run: terraform init -backend=false && terraform validate
 
+      - name: Inicializar Terraform con backend
+        run: terraform init
+
+      - name: Importar recurso DNS existente (si aplica)
+        id: import_dns
+        run: |
+          # Verificar si el módulo dns_mensajeria está en el código
+          if grep -q "module \"dns_mensajeria\"" terraform/main.tf; then
+            echo "Módulo dns_mensajeria encontrado en código"
+            # Verificar si ya está en el estado
+            if terraform state list 2>/dev/null | grep -q "module.dns_mensajeria"; then
+              echo "✅ Recurso ya está en el estado"
+            else
+              echo "📥 Importando recurso DNS desde Cloudflare..."
+              # Obtener Record ID desde Cloudflare API
+              ZONE_ID="${{ secrets.CLOUDFLARE_ZONE_ID }}"
+              CF_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
+              RECORD_NAME="mensajeria.fascinantedigital.com"
+              
+              RESPONSE=$(curl -s -X GET \
+                "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD_NAME}&type=CNAME" \
+                -H "Authorization: Bearer ${CF_TOKEN}" \
+                -H "Content-Type: application/json")
+              
+              RECORD_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+              
+              if [ -n "$RECORD_ID" ]; then
+                echo "Record ID: ${RECORD_ID}"
+                terraform import module.dns_mensajeria.cloudflare_record.this "${ZONE_ID}/${RECORD_ID}" || echo "⚠️ Import falló (puede que ya esté en el estado o no exista)"
+              else
+                echo "⚠️ No se encontró el registro en Cloudflare"
+              fi
+            fi
+          else
+            echo "Módulo dns_mensajeria no está en el código, saltando import"
+          fi
+        continue-on-error: true
+
       - name: Terraform Plan
         id: plan
         run: |
-          terraform init
           terraform plan -no-color -out=tfplan \
             -var="cloudflare_api_token=${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             -var="cloudflare_account_id=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" \

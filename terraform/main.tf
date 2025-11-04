@@ -29,3 +29,17 @@
 #   project  = var.google_project_id
 # }
 
+# === BEGIN dns_mensajeria (managed) ===
+# Temporalmente restaurado para importar al estado
+module "dns_mensajeria" {
+  source = "./modules/cloudflare_dns_record"
+
+  zone_id = var.cloudflare_zone_id
+  name    = "mensajeria"
+  type    = "CNAME"
+  content = "tu-servicio-xyz-uc.a.run.app"
+  proxied = true
+  ttl     = 1
+}
+# === END dns_mensajeria (managed) ===
+

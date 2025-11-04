@@ -1,9 +1,7 @@
-# Backend remoto en Google Cloud Storage (opcional)
-# Descomenta y configura según tu entorno
-
-# terraform {
-#   backend "gcs" {
-#     bucket = "your-terraform-state-bucket"
-#     prefix = "infra-elite/terraform.tfstate"
-#   }
-# }
+# Backend remoto en Google Cloud Storage
+terraform {
+  backend "gcs" {
+    bucket = "terraform-state-fascinante-digit-1698295291643"
+    prefix = "infra-elite/terraform.tfstate"
+  }
+}
