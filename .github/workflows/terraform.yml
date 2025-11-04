@@ -66,6 +66,11 @@ jobs:
         id: import_dns
         working-directory: terraform
         continue-on-error: true
+        env:
+          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
         run: |
           # Verificar si el módulo dns_mensajeria está en el código
           if grep -q 'module "dns_mensajeria"' main.tf; then
@@ -79,14 +84,14 @@ jobs:
               ZONE_ID="${{ secrets.CLOUDFLARE_ZONE_ID }}"
               CF_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
               RECORD_NAME="mensajeria.fascinantedigital.com"
-
+              
               RESPONSE=$(curl -s -X GET \
                 "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD_NAME}&type=CNAME" \
                 -H "Authorization: Bearer ${CF_TOKEN}" \
                 -H "Content-Type: application/json")
-
+              
               RECORD_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
-
+              
               if [ -n "$RECORD_ID" ]; then
                 echo "✅ Record ID encontrado: ${RECORD_ID}"
                 terraform import module.dns_mensajeria.cloudflare_record.this "${ZONE_ID}/${RECORD_ID}" || echo "⚠️ Import falló (puede que ya esté en el estado o no exista)"
@@ -180,6 +185,11 @@ jobs:
         id: import_dns
         working-directory: terraform
         continue-on-error: true
+        env:
+          TF_VAR_google_project_id: ${{ env.GOOGLE_PROJECT_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
         run: |
           # Verificar si el módulo dns_mensajeria está en el código
           if grep -q 'module "dns_mensajeria"' main.tf; then
@@ -193,14 +203,14 @@ jobs:
               ZONE_ID="${{ secrets.CLOUDFLARE_ZONE_ID }}"
               CF_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
               RECORD_NAME="mensajeria.fascinantedigital.com"
-
+              
               RESPONSE=$(curl -s -X GET \
                 "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${RECORD_NAME}&type=CNAME" \
                 -H "Authorization: Bearer ${CF_TOKEN}" \
                 -H "Content-Type: application/json")
-
+              
               RECORD_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
-
+              
               if [ -n "$RECORD_ID" ]; then
                 echo "✅ Record ID encontrado: ${RECORD_ID}"
                 terraform import module.dns_mensajeria.cloudflare_record.this "${ZONE_ID}/${RECORD_ID}" || echo "⚠️ Import falló (puede que ya esté en el estado o no exista)"
