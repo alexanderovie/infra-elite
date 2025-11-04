@@ -76,10 +76,15 @@ module "worker_test" {
 
 # === BEGIN vercel_test_project (managed) ===
 # Proyecto de prueba de Vercel para validar el módulo
+# Random ID para asegurar nombre único del proyecto
+resource "random_id" "vercel_project_suffix" {
+  byte_length = 4
+}
+
 module "vercel_test_project" {
   source = "./modules/vercel_project"
 
-  name      = "vercel-test-project"
+  name      = "vercel-test-project-${random_id.vercel_project_suffix.hex}"
   framework = "nextjs"
 
   # Sin git repository (deploy manual o via CLI)
